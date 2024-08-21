@@ -1,4 +1,4 @@
-import boto3, json, math
+import boto3, json,sys
 
 import re
 import httpx
@@ -6,6 +6,17 @@ import httpx
 
 session = boto3.Session()
 bedrock = session.client(service_name='bedrock-runtime')
+
+models={
+    "claude3":"anthropic.claude-3-sonnet-20240229-v1:0",
+     "claude3.5":"anthropic.claude-3-5-sonnet-20240620-v1:0"
+    }
+model_ids=["claude3","claude3.5"]
+current_model="claude3"
+
+
+if len(sys.argv)>1 and sys.argv[1] in model_ids:
+    current_model=sys.argv[1]
 
 # define tools_list
 tool_list = [
@@ -125,6 +136,7 @@ class Agent:
         self.system = system
         self.verbose = verbose
         self.messages: list = []
+        print(f'\nModel:{current_model}')
         
 
     def __call__(self, message=""):
@@ -143,7 +155,7 @@ class Agent:
 
     
     def execute(self):
-        print("\n\nAgent thinking......")
+        print("\nAgent thinking......")
         if self.verbose:
             print("===============execute start================")
             print(json.dumps(self.messages, indent=4))
@@ -151,7 +163,8 @@ class Agent:
         
         while True:  # process it until stop reason is not tool_use
             response = self.client.converse(
-                modelId="anthropic.claude-3-sonnet-20240229-v1:0",
+                #modelId="anthropic.claude-3-sonnet-20240229-v1:0",
+                modelId=models[current_model],
                 messages=self.messages,
                 inferenceConfig={
                     "maxTokens": 2000,
@@ -164,6 +177,8 @@ class Agent:
             )
             
             response_content_blocks = response['output']['message']['content']
+            print(f'========LLM Result========\n{response_content_blocks[0]["text"]}\n\n')
+            
             stop_reason = response['stopReason']
             if self.verbose:
                 print(json.dumps(response, indent=4))
@@ -243,7 +258,7 @@ def loop(max_iterations=10, query: str = ""):
         i += 1
         result = agent(next_prompt)[0]['text']
         
-        print(f"========Step{i}========\n{result}\n\n")
+        print(f"========Agent Step{i}========\n{result}\n\n")
 
         if "PAUSE" in result and "Action" in result:
             action = re.findall(r"Action: ([a-z_]+): (.+)", result, re.IGNORECASE)
